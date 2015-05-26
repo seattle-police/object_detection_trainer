@@ -1,4 +1,9 @@
 import os
-videos = sorted(os.listdir('/home/azureuser/Dropbox/Public/Spokane Police/'))
+import sys
+
+from_folder = sys.argv[1]
+to_folder = sys.argv[2]
+
+videos = sorted(os.listdir(from_folder))
 for i, video in enumerate(videos):
-    os.system('ffmpeg -threads 0 -i "/home/azureuser/Dropbox/Public/Spokane Police/%s" "/datadrive/%s_%%5d.png"' % (video, i))
+    os.system('ffmpeg -threads 0 -i "%s%s" "/datadrive/%s_%%6d.png"' % (from_folder, video, to_folder, i))
