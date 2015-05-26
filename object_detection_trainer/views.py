@@ -4,13 +4,13 @@ from django.contrib.auth.decorators import login_required
 import os
 import json
 import re
+import multiprocessing 
 
 def home(request):
     return render_to_response("home.html", {})
     
 def get_coordinates(request):
-    f = open('coordinates.json', 'r')
-    #coordinates_json = json.loads(f.read())    
+    f = open('coordinates.json', 'r') 
     return HttpResponse(f.read(), content_type="application/json")
     
 def train(request):
@@ -42,43 +42,14 @@ def train(request):
     # few different C values and see what works best for your data.
     options.C = 3
     # Tell the code how many CPU cores your computer has for the fastest training.
-    options.num_threads = 2
+    options.num_threads = multiprocessing.cpu_count()
     options.be_verbose = True
 
 
     training_xml_path = os.path.join("/home/azureuser/object_detection_trainer/", "training.xml")
-    #testing_xml_path = os.path.join(faces_folder, "testing.xml")
-    # This function does the actual training.  It will save the final detector to
-    # detector.svm.  The input is an XML file that lists the images in the training
-    # dataset and also contains the positions of the face boxes.  To create your
-    # own XML files you can use the imglab tool which can be found in the
-    # tools/imglab folder.  It is a simple graphical tool for labeling objects in
-    # images with boxes.  To see how to use it read the tools/imglab/README.txt
-    # file.  But for this example, we just use the training.xml file included with
-    # dlib.
     dlib.train_simple_object_detector(training_xml_path, "detector.svm", options) 
 
-
-
-    # Now that we have a face detector we can test it.  The first statement tests
-    # it on the training data.  It will print(the precision, recall, and then)
-    # average precision.
-    #print("")  # Print blank line to create gap from previous output
-    #print("Training accuracy: {}".format(
-    #    dlib.test_simple_object_detector(training_xml_path, "detector.svm")))
-    # However, to get an idea if it really worked without overfitting we need to
-    # run it on images it wasn't trained on.  The next line does this.  Happily, we
-    # see that the object detector works perfectly on the testing images.
-    #print("Testing accuracy: {}".format(
-    #    dlib.test_simple_object_detector(testing_xml_path, "detector.svm")))
-
-
-
-
-
-
-
-    return HttpResponse('[]', content_type="application/json")
+    return HttpResponse('{"status": "completed"}', content_type="application/json")
 
 def get_frame_detections(requests, frame):
     import os
@@ -88,33 +59,10 @@ def get_frame_detections(requests, frame):
     import dlib
     from skimage import io
     detector = dlib.simple_object_detector("detector.svm")
-    #io.imsave('detector.png', detector)
-    # We can look at the HOG filter we learned.  It should look like a face.  Neat!
-    #win_det = dlib.image_window()
-    #win_det.set_image(detector)
-
-    # Now let's run the detector over the images in the faces folder and display the
-    # results.
-    # print("Showing detections on the images in the faces folder...")
-    #win = dlib.image_window()
-    #s = ''
-    #files = sorted([image for image in os.listdir('media') if image.endswith('.jpg')])[:200]
-    #detections = dict([(i, []) for i in range(1, len(files)+1)])
-    #for i, f in enumerate(files):
-    #    print "Processing file: {}\n".format(f)
-    print frame
     img = io.imread('/datadrive/'+frame)
-    print img
     dets = detector(img)
-    print list(dets)
-    #s += "Number of faces detected: {}\n".format(len(dets))
     detections = []
     for k, d in enumerate(dets):
-        #s += "Detection {}: Left: {} Top: {} Right: {} Bottom: {}\n".format(k, d.left(), d.top(), d.right(), d.bottom())
-        #x1 = int(round(int(d.left()) / float(2)))
-        #x2 = int(round(int(d.right()) / float(2)))
-        #y1 = int(round(int(d.top()) / float(2)))
-        #y2 = int(round(int(d.bottom()) / float(2)))
         x1 = d.left()
         x2 = d.right()
         y1 = d.top()
@@ -173,16 +121,10 @@ def generate_xml(coordinates_dict):
 def add_all_to_training(request):
     frames = json.loads(request.POST['frames'])
     frames = dict([(re.search('\d+_\d+\.png', item[0]).group(0), item[1]) for item in frames.items()])
-    #image = re.search('\d+_\d+\.png', image).group(0)
-    #print request.POST['coordinates']
     for frame in frames:
         print frame
         frames[frame] = [[j.strip('px') for j in c if int(c[2].strip('px'))*int(c[3].strip('px'))*2 > 400] for c in frames[frame] if c]
 
-    #coord_xml = ""
-    #for coord in coordinates:
-        
-    #    coord_xml += "    <box top='%s' left='%s' width='%s' height='%s'/>\n" % (coord[0], coord[1], coord[2], coord[3])
     
     try:
         f = open('coordinates.json', 'r')
@@ -197,7 +139,6 @@ def add_all_to_training(request):
         coordinates_json = {}
     print coordinates_json
     coordinates_json.update(frames)
-    #coordinates_json[image] = coordinates
     f = open('coordinates.json', 'w')
     f.write(json.dumps(coordinates_json))    
     
@@ -214,10 +155,6 @@ def add_to_training(request):
     image = re.search('\d+_\d+\.png', image).group(0)
     print request.POST['coordinates']
     coordinates = [[j.strip('px') for j in c if int(c[2].strip('px'))*int(c[3].strip('px'))*2 > 400] for c in json.loads(request.POST['coordinates'])]
-    #coord_xml = ""
-    #for coord in coordinates:
-        
-    #    coord_xml += "    <box top='%s' left='%s' width='%s' height='%s'/>\n" % (coord[0], coord[1], coord[2], coord[3])
     
     try:
         f = open('coordinates.json', 'r')
