@@ -1,0 +1,257 @@
+<html>
+<head>
+<title>Objection Detection Training</title>
+<style>
+body {
+  padding:0;
+  margin:0;
+  background:#000;
+}
+canvas {
+  display:block;
+  background:#fff;
+}
+h1 {
+ 
+  color:#fff;
+  margin:0;
+  font-family:Arial, sans-serif;
+}
+p {
+color:#FFF;
+}
+.rectangle, .finished_rectangle {
+    border: 1px solid #FF0000;
+    position: absolute;
+}
+.canvas, .canvas {
+    margin:5px;
+    float:left;
+    width:480px;
+    height:360px;
+    background:url('/media/00001.jpg');
+    position: relative;
+}
+.training {
+border:1px solid blue;
+}
+.testing {
+border:1px solid yellow;
+}
+</style>
+<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+<script>
+function removeTinyRectangles() {
+    console.log('rtr');
+    $('.rectangle, .finished_rectangle').each(function() {
+        console.log($(this).width()+' '+$(this).height());
+        if (($(this).width == 0) || ($(this).height() == 0)) {
+            $(this).remove();
+        }
+    });
+}
+function pad(n, width, z) {
+  z = z || '0';
+  n = n + '';
+  return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
+}
+function getDetections() {
+    $.get('/train/', function(data) {
+        for (var i=1960;i<2000;i++) {
+            $('body').append('<div class="canvas" id="canvas_'+i+'" style="background:url(\'/media/'+pad(i,5)+'.jpg\')" style="color:#FFF">'+i+'</div>');
+            if (false) {
+                for (var j=0;j<data[i].length;j++) {
+                    var coordinates = data[j];
+                    console.log(JSON.stringify(coordinates));
+                    $('#canvas_'+i).append('<div class="finished_rectangle" style="position:absolute;left:'+coordinates[0]+';top:'+coordinates[1]+';width:'+coordinates[2]+';height:'+coordinates[3]+'"></div>')
+                }
+                if (i < 31) {
+                    $('#canvas_'+i).addClass('training');
+                } else {
+                    $('#canvas_'+i).addClass('testing');
+                }
+                
+                console.log($('#canvas_'+i).html());
+            }
+        }
+    });
+}
+function doCheck(i) {
+    $.get('/get_frame_detections/0_'+pad(i,5)+'.png/', function(data) {
+        for (var j=0;j<data.length;j++) {
+            var coordinates = data[j];
+            console.log(JSON.stringify(coordinates));
+            var ids = $("div").map(function() {
+                return this.id;
+            }).get();
+            console.log('canvas_'+i+'  '+$('#canvas_'+i).html());
+            console.log(ids);
+            $('#canvas_'+i).append('<div class="finished_rectangle" style="position:absolute;left:'+coordinates[0]+';top:'+coordinates[1]+';width:'+coordinates[2]+';height:'+coordinates[3]+'"></div>')
+            
+        }
+    });
+}
+function draw() {
+    for (var i=1900;i<2000;i++) {
+        doCheck(i);    
+        
+    }
+}
+function showFrames(video_n, page_n) {
+    window.stop();
+    for (var i=((page_n-1)*500 + 1);i<(page_n*500+1);i++) {
+        $('#frames').append('<div class="canvas" id="canvas_'+i+'" style="background:url(\'/media/'+(video_n-1)+'_'+pad(i,5)+'.png\'); color:#FFF">'+i+'</div>');
+        
+    }
+    setTimeout(drawRectangles, 10000, video_n, page_n);
+}
+function drawRectangles(video_n, page_n) {
+    for (var i=((page_n-1)*500 + 1);i<(page_n*500+1);i++) {
+        if ((video_n-1)+'_'+pad(i,5)+'.png' in window.frames) {
+            $('#canvas_'+i).addClass('training');
+            for (var j=0;j<window.frames[(video_n-1)+'_'+pad(i,5)+'.png'].length;j++) {
+                var coordinates = window.frames[(video_n-1)+'_'+pad(i,5)+'.png'][j];
+                console.log(JSON.stringify(coordinates));
+                var ids = $("div").map(function() {
+                    return this.id;
+                }).get();
+                console.log('canvas_'+i+'  '+$('#canvas_'+i).html());
+                console.log(ids);
+                $('#canvas_'+i).append('<div class="finished_rectangle" style="position:absolute;top:'+coordinates[0]+';left:'+coordinates[1]+';width:'+coordinates[2]+';height:'+coordinates[3]+'"></div>')
+                
+            }
+        }
+    }
+}
+$(function() {
+    //getDetections();
+    $.get('/get_coordinates/', function(data) {
+        window.frames = data;
+    });
+    setTimeout(showFrames, 3000, 1, 1);
+    //setTimeout(drawRectangles, 10000, 1, 1);
+    for (var i=0;i<50;i++) {
+        $('#video_number').append('<option>'+(i+1)+'</option>');
+        
+        
+    }
+    for (var i=0;i<20;i++) {
+        $('#pages').append('<option>'+(i+1)+'</option>');
+    }
+    //setTimeout(draw, 10000);
+    var element = null;
+    $('body').on('click', '.finished_rectangle', function(e) {
+        if (e.shiftKey) {
+            console.log('rectangle deletion fired');
+            $(this).remove();
+            element = null;
+            var rtr = window.setTimeout(removeTinyRectangles,100);
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+            var coordinates = [];
+            $(this).children().each(function () {
+                coordinates.push([$(this).css('top'), $(this).css('left'), $(this).css('width'), $(this).css('height')]);
+            });
+            $.post('/add_to_training/', {'image': $(this).css('background'), 'coordinates': JSON.stringify(coordinates)});
+        } 
+       
+    });
+    function setMousePosition(e) {
+        var offset = e.target.offset();
+        mouse.x = event.pageX - offset.left;
+        mouse.y = event.pageY - offset.top; 
+        
+    };
+
+    var mouse = {
+        x: 0,
+        y: 0,
+        startX: 0,
+        startY: 0
+    };
+    $('body').on('change', '#video_number', function() {
+        var optionSelected = $(this).find("option:selected");
+        //var valueSelected  = optionSelected.val();
+        var textSelected   = optionSelected.text();
+        $('#frames').html('');
+        showFrames(parseInt(textSelected), parseInt($('#pages').find("option:selected").text()));
+        $(this).blur();
+    });
+    $('body').on('change', '#pages', function() {
+        var optionSelected = $(this).find("option:selected");
+        //var valueSelected  = optionSelected.val();
+        var textSelected   = optionSelected.text();
+        $('#frames').html('');
+        showFrames(parseInt($('#video_number').find("option:selected").text()), parseInt(textSelected));
+        $(this).blur();
+    });
+
+    $('body').on('mousemove', '.canvas', function (e) {
+        //setMousePosition(e);
+        var offset = $(this).offset();
+        mouse.x = event.pageX - offset.left;
+        mouse.y = event.pageY - offset.top; 
+        if (element !== null) {
+            element.style.width = Math.abs(mouse.x - mouse.startX) + 'px';
+            element.style.height = Math.abs(mouse.y - mouse.startY) + 'px';
+            element.style.left = (mouse.x - mouse.startX < 0) ? mouse.x + 'px' : mouse.startX + 'px';
+            element.style.top = (mouse.y - mouse.startY < 0) ? mouse.y + 'px' : mouse.startY + 'px';
+        }
+    });
+    $('#add_all_to_training').click(function() {
+        var frames = {}
+        $('#frames').children().each(function () {
+            var coordinates = [];
+            $(this).children().each(function () {
+                coordinates.push([$(this).css('top'), $(this).css('left'), $(this).css('width'), $(this).css('height')]);
+            });
+            frames[$(this).css('background')] = coordinates;
+        });
+        $.post('/add_all_to_training/', {'frames': JSON.stringify(frames)});
+    });
+    $('body').on('click', '.canvas', function (e) {
+        console.log('canvas onclick fired');
+        if (element !== null) {
+            element.className = 'finished_rectangle';
+            element = null;
+            //$(this).style.cursor = "default";
+            console.log("finsihed.");
+            $(this).removeClass('testing');
+            $(this).addClass('training');
+            $(this).addClass('new_training');
+            var coordinates = [];
+            $(this).children().each(function () {
+                coordinates.push([$(this).css('top'), $(this).css('left'), $(this).css('width'), $(this).css('height')]);
+            });
+            $.post('/add_to_training/', {'image': $(this).css('background'), 'coordinates': JSON.stringify(coordinates)});
+        } else {
+            console.log("begun.");
+            
+            mouse.startX = mouse.x;
+            mouse.startY = mouse.y;
+            element = document.createElement('div');
+            element.className = 'rectangle'
+            element.style.left = mouse.x + 'px';
+            element.style.top = mouse.y + 'px';
+            $(this).append(element)
+            
+            //$(this).style.cursor = "crosshair";
+        }
+    });
+});
+</script>
+
+</head>
+<body>
+<h1>Objection Detection Trainer</h1>
+<p><strong>Create rectangle:</strong> Click then click again<br/>
+<strong>Delete rectangle:</strong> Shift click inside the rectangle<br/>
+<strong>Training set</strong> Blue<br/>
+<strong>Testing set</strong> Yellow<br/>
+<strong>Video number:</strong> <select id="video_number"></select>
+
+<strong>Page:</strong> <select id="pages"></select><br/>
+<input type="button" value="Add all to training" id="add_all_to_training" /></p>
+<div id="frames"></div>
+</body>
+</html>
