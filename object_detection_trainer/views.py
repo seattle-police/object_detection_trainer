@@ -5,6 +5,7 @@ import os
 import json
 import re
 import multiprocessing 
+import settings
 
 def home(request):
     return render_to_response("home.html", {})
@@ -20,11 +21,6 @@ def train(request):
 
     import dlib
     from skimage import io
-
-
-    
-    faces_folder = '/home/azureuser/object_detection_trainer/media/'
-
 
     # Now let's do the training.  The train_simple_object_detector() function has a
     # bunch of options, all of which come with reasonable default values.  The next
@@ -46,7 +42,7 @@ def train(request):
     options.be_verbose = True
 
 
-    training_xml_path = os.path.join("/home/azureuser/object_detection_trainer/", "training.xml")
+    training_xml_path = os.path.join(settings.BASE_DIR, "training.xml")
     dlib.train_simple_object_detector(training_xml_path, "detector.svm", options) 
 
     return HttpResponse('{"status": "completed"}', content_type="application/json")
@@ -59,7 +55,7 @@ def get_frame_detections(requests, frame):
     import dlib
     from skimage import io
     detector = dlib.simple_object_detector("detector.svm")
-    img = io.imread('/datadrive/'+frame)
+    img = io.imread(os.path.join(settings.FRAMES_DIR, frame))
     dets = detector(img)
     detections = []
     for k, d in enumerate(dets):
